@@ -29,7 +29,7 @@ function Intensities=formatData()
 %    Last revised on August 23, 2018
 %
 %% Open the appropriate data file
-[FILENAME, PATHNAME, FILTERINDEX] = uigetfile('*.csv');
+[FILENAME, PATHNAME, FILTERINDEX] = uigetfile('*.csv','Select file with intensity data');
 FID=fopen(strcat(PATHNAME,FILENAME));
 Intensities=[];
 
