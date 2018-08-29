@@ -1,17 +1,16 @@
 %% Prepare to run script
 clear all; close all; clc;
 
-%% Set target light output
-lightOutput = [10 20 50 75 100]';
-
-%% Set file parameters
-numWellsMeasured = 8;
+%% Set file and measurement parameters
+numRowsMeasured = 1;
+numColumnsMeasured = 8;
+numWells = numRowsMeasured*numColumnsMeasured;
 
 %% Set segmentation parameters
-ampthresh = 0.7; % Percent of max intensity threshold for segmenting wells
-sdthresh = 1; % Threshold for discarding unwanted data points from wells (ie, data captured when moving sensor to well)
+ampthresh = 0.1; % Fraction of max intensity threshold for segmenting wells
+sdthresh = 0.75; % Threshold for discarding unwanted data points from wells (ie, data captured when moving sensor to well)
 minPeakDist = 0;
-cmap = lines(numWellsMeasured);
+cmap = lines(numWells);
 
 %% Load source data
 [files, folder] =  uigetfile('*','MultiSelect','on');
@@ -35,8 +34,6 @@ end
 
 numFiles = length(files);
 measurementNames = erase(files,ext);
-measurementValues = regexprep(files, '^(\D+)(\d+)(.*)', '$2');
-measurementValues = str2double(measurementValues);
 
 %% Measure light intensity per well
 for i = 1:numFiles
@@ -49,9 +46,9 @@ for i = 1:numFiles
     if reverseData~=0
         data = wrev(data);
     end
-    
+        
     subplot(numFiles,1,i); hold on;
-    title(measurementNames{i},'Interpreter', 'none');
+    title(measurementNames{i});
     
     time = 1:length(data);
     plot(time,data(:));
@@ -71,14 +68,14 @@ for i = 1:numFiles
     wellID = time(idx)';
     plot(locs, wellIntensity(locs),'k*','MarkerSize',10);
     
-    if max(idx) > numWellsMeasured
-        disp(['Warning! More than ' num2str(numWellsMeasured) ' wells detected']);
-    elseif max(idx) < numWellsMeasured
-        disp(['Warning! Fewer than ' num2str(numWellsMeasured) ' wells detected']);
+    if max(idx) > numWells
+        disp(['Warning! More than ' num2str(numWells) ' wells detected']);
+    elseif max(idx) < numWells
+        disp(['Warning! Fewer than ' num2str(numWells) ' wells detected']);
     end
     
     %% Calculate average well intensities and exlude outliers (captured when moving sensor to well)
-    for j = 1:numWellsMeasured
+    for j = 1:numWells
         m = nanmedian(wellIntensity(wellID==j));
         sd = nanstd(wellIntensity(wellID==j));
         wellIntensity(abs(wellIntensity - m)>sdthresh*sd & wellID==j) = nan;
@@ -92,29 +89,20 @@ for i = 1:numFiles
     
 end
 
-%% Calculate plate intensity per IRIS value
-intensity = [zeros(numWellsMeasured,1), wellMean'];
-measurementValues = [0; measurementValues'];
-u = mean(intensity)';
-sd = std(intensity)';
+%% Display results
+rawIntensitiesMean = vec2mat(wellMean,numColumnsMeasured);
+rawIntensitiesSD = vec2mat(wellSD,numColumnsMeasured);
+plateMean = mean(rawIntensitiesMean(:));
+plateSD = std(rawIntensitiesMean(:));
+plateCV = plateSD/plateMean;
 
-%% Fit data
-[f, g] = fit(measurementValues, u,'poly1');
-x = 0:1:max(measurementValues);
-yfit = f.p1*x + f.p2;
-disp(['Intensity = ' num2str(f.p1) '*IRIS + ' num2str(f.p2) newline])
+disp(['Mean plate intensity = ' num2str(plateMean*1E6) ' uW']);
+disp(['SD plate intensity = ' num2str(plateSD*1E6) ' uW']);
+disp(['CV = ' num2str(plateCV*100) '%']);
 
-%% Calculate IRIS needed for target light output
-inputIRIS = round((lightOutput*1E-6 - f.p2)./f.p1);
-doseTable = table(inputIRIS, lightOutput);
-doseTable.Properties.VariableNames = {'IRIS' 'Light_uW'};
-disp(doseTable)
+figure('Name', 'Measured intensities');
+heatmap(rawIntensitiesMean*1E6);
+colorbar;
+title('Measured intensities (uW)');
 
-%% Plot data
-figure;
-errorbar(measurementValues,u*1E6,sd*1E6,'ro','MarkerSize',2);
-hold on;
-plot(x,yfit*1E6);
-title(['LPA response curve' newline '(R squared = ' num2str(g.rsquare) ')']); xlabel('IRIS values (AU)'); ylabel('Light intensity (uW)')
-
-% clearvars -except doseTable
+clearvars -except rawIntensitiesMean rawIntensitiesSD plateMean plateSD plateCV
