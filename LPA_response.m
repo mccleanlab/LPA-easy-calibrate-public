@@ -86,7 +86,7 @@ wellMean = nan(numFiles,numWellsMeasured);
 wellSD = nan(numFiles,numWellsMeasured);
 
 for i = 1:numFiles
-    % Creaet subplot per measurement file
+    % Create subplot per measurement file
     subplot(numFiles,1,i); hold on;
     title(measurementNames{i},'Interpreter', 'none');
         
