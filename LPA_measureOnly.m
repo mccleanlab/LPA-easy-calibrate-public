@@ -1,9 +1,9 @@
 %% Prepare to run script
-clear all; close all; clc;
+clearvars; close all; clc;
 
 %% Set file and measurement parameters
-numRowsMeasured = 1;
-numColumnsMeasured = 8;
+numRowsMeasured = 3;
+numColumnsMeasured = 5;
 numWells = numRowsMeasured*numColumnsMeasured;
 
 %% Set segmentation parameters
@@ -36,6 +36,10 @@ numFiles = length(files);
 measurementNames = erase(files,ext);
 
 %% Measure light intensity per well
+figure('Name', 'Well Identification');
+wellMean = nan(numFiles,numWells);
+wellSD = nan(numFiles,numWells);
+
 for i = 1:numFiles
     file = files{i};
     opts = detectImportOptions([folder file]);
@@ -48,7 +52,7 @@ for i = 1:numFiles
     end
         
     subplot(numFiles,1,i); hold on;
-    title(measurementNames{i});
+    title(measurementNames{i},'Interpreter', 'none');
     
     time = 1:length(data);
     plot(time,data(:));

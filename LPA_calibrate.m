@@ -1,46 +1,77 @@
+% NOTE:
+%
+% This script is based on calibration.m by Sebastian Castillo-Hair, as
+% described in Gerhardt, K. P. et al. An open-hardware platform for
+% optogenetics and photobiology. Nat. Publ. Gr. 1–13 (2016).
+% doi:10.1038/srep35363
+% 
 % SUMMARY:
-% FILL IN
+%
+% This script imports files containing light intensity measurements
+% acquired by the ThorLabs power meter, maps the intensities to the wells
+% of a light plate apparatus (LPA), and calculates calibration values
+% (either dc or gcal) such that each LED in the LPA outputs an equal amount
+% of light. Multiple rounds of calibration may be needed to achieve this.
+% If needed, users can change how intensity measurements are mapped to LPA
+% wells by changing the segmentation parameters.
+%
+% The measurement files to be imported for channels 1 and 2 (corresponding
+% to the top and bottom sets of LEDs, respectively) and the current
+% calibration round are specified by the user via UI prompts.
+%
+% Whether the script calculates dc or gcal calibration values is also
+% specified by UI prompt. The mapped intensity values are saved to
+% rawIntensities_round_*.csv and the calibration files are saved to either
+% dc_round_*.csv or gcal_round_*.csv. The .csv files are saved to an output
+% folder specified by UI prompt. The script also displays the mean,
+% standard deviation, and coefficient of variation of light intensities
+% across the plate.
+%
+% This script has been tested with 1) .csv files containing light intensity
+% measurements acquired via ThorLabs Optical Power Monitor v1.0.2149.55
+% software and 2) .txt files containing light intensity measurements
+% acquired via ThorLabs PM100 Utility Version 3.0. It may not work directly
+% with other file types.
 %
 % INPUTS:
-%  none
-%
+% Measurement files for channels 1 and 2: entered via UI prompt
 %
 % OUTPUTS:
-%  TBD
+% rawIntensities_round_*.csv: Intensity measurements mapped to LPA
+% gcal_round_*.csv: LPA gcal values
+% dc_round_*.csv: LPA dc values
 %
+% WRITTEN BY:
+%   Kieran Sweeney
+%   University of Wisconsin-Madison
+%   Department of Biomedical Engineering
+%   1550 Engineering Drive ECB 3156
+%   Madison, WI 53705
+%   ksweeney2@wisc.edu
 %
-%    Written by Kieran Sweeney
-%               University of Wisconsin-Madison
-%               Department of Biomedical Engineering
-%               1550 Engineering Drive ECB 3156
-%               Madison, WI 53705
-%               ksweeney2@wisc.edu
-%
-%
-%    Last revised on August 23, 2018
-
+% Last revised on August 30, 2018
 
 %% Prepare to run script
-clear all; close all; clc;
+clearvars ; close all; clc;
 
 %% Set segmentation parameters
-ampthresh = 0.7; % Percent of max intensity threshold for segmenting wells
+ampthresh = 0.7; % Fraction of max intensity threshold for segmenting wells
 sdthresh = 1.5; % Threshold for discarding unwanted data points from wells (ie, data captured when moving sensor to well)
 minPeakDist = 0; % Can optionally enforce minimum distance between well peaks to improve well identification
 
-%% Set measurement parameters
-numRows = 4; % Rows A-D of 24 well plate
-numColumns = 6; % Columns 1-6 of 24 well plate
+%% Measurement parameters
+numRows = 4; % Rows of 24 well plate
+rowNames = {'A' 'B' 'C' 'D'};
+numColumns = 6; % Columns of 24 well plate
+columnNames = {'1c1' '1c2' '2c1' '2c2' '3c1' '3c2' '4c1' '4c2' '5c1' '5c2' '6c1' '6c2'};
 numWells = numRows*numColumns;
-rowNames = ['A'; 'B'; 'C'; 'D'];
 channelsPerWell = 2;
-cmap = lines(numWells);
 
-%% Set calibration round
+%% Set calibration round by UI prompt
 UserAnswerRound = inputdlg('Enter calibration round');
-calibrationRound = str2num(UserAnswerRound{1});
+calibrationRound = str2double(UserAnswerRound{1});
 
-%% Set calibration property
+%% Set calibration property by UI prompt
 UserAnswerProperty = questdlg('Select property to calibrate','Calibration property','gcal','dc','gcal');
 switch UserAnswerProperty
     case 'gcal'
@@ -51,77 +82,86 @@ switch UserAnswerProperty
         maxCal = 63; % Initial max dc value
 end
 
-%% Load data
+%% Import intensity measurements for channels 1 and 2 by UI prompt
 [file, folder] = uigetfile('*',['Select round ' num2str(calibrationRound) ' channel 1 data']);
 file_ch1 = [folder file];
-[file, folder] = uigetfile('*',['Select round ' num2str(calibrationRound) ' channel 1 data']);
+[file, folder] = uigetfile('*',['Select round ' num2str(calibrationRound) ' channel 2 data']);
 file_ch2 = [folder file];
 files = {file_ch1, file_ch2};
 
+% Interpret measurements based on file extension
 [filepath,name,ext] = fileparts(files{1});
 
 switch ext
-    case '.csv'
-        dataStartLine = 16;
-        dataColumn = 4;
-        reverseData = 0;
-    case '.txt'
-        dataStartLine = 2;
-        dataColumn = 2;
-        reverseData = 1;
+    case '.csv' % Finds intensity measurements for files from ThorLabs Optical Power Monitor v1.0.2149.55
+        dataStartLine = 16; % Line where intensity measurements start
+        dataColumn = 4; % Column of imported data containing intensity measurements
+    case '.txt' % Finds intensity measurements in files from ThorLabs PM100 Utility Version 3.0
+        dataStartLine = 2; % Line where intensity measurements start
+        dataColumn = 2; % Column of imported data containing intensity measurements
+        reverseData = 1; % Reverses order of measurements from ThorLabs PM100 Utility Version 3.0
 end
 
-%% Select output folder
-outputFolder = uigetdir('','Select folder to store calibration files');
+%% Select output folder by UI prompt
+outputFolder = uigetdir('','Select output folder for measurement and calibration files');
 
-%% ID wells
+%% Identify wells and measure light intensity per well
 figure('Name', ['Round ' num2str(calibrationRound) ' Well Identification']);
+cmap = lines(numWells);
+wellMean = nan(channelsPerWell,numWells);
+wellSD = nan(channelsPerWell,numWells);
 
 for c = 1:channelsPerWell
-    %% Select channel data
+    % Create subplot per channel
+    subplot(2,1,c); hold on;
+    title(['Channel ' num2str(c)],'Interpreter', 'none');
+
+    % Extract measurement data from file 
     data = files{c};
     opts = detectImportOptions(data);
     opts.DataLine = dataStartLine;
     data = readtable(data,opts);
     data = data{:,dataColumn};
     
-    if reverseData~=0
+    % Reverse measurement data if necessary
+    if exist('reverseData')~=0
         data = wrev(data);
     end
-        
-    %% Preprocess data
-    subplot(2,1,c); hold on;
-    title(['Channel ' num2str(c)]);
     
+    % Preprocess measurement data by thresholding and background subtraction
     time = 1:length(data);
     plot(time,data(:));
     wellIntensity = data(:);
-    dark = median(wellIntensity(wellIntensity<ampthresh*max(wellIntensity))); % Calculate background dark intensity
+    dark = median(wellIntensity(wellIntensity<ampthresh*max(wellIntensity))); % Calculate background intensity
     wellIntensity = wellIntensity - dark; % Subtract out background intensity
     plot(time,wellIntensity)
-    wellIntensity(wellIntensity<ampthresh*max(wellIntensity)) = nan; % Exclude intensity data from outside wells
+    wellIntensity(wellIntensity<ampthresh*max(wellIntensity)) = nan; % Threshold to exclude intensity data from outside wells
         
-    %% ID wells
+    % Create binary mask signal from preprocessed measurements
     wellIntensityMask = zeros(length(wellIntensity),1);
     wellIntensityMask(wellIntensity>0) = 1;
     
-    [pks, locs, width] = findpeaks(wellIntensityMask,'MinPeakDistance',minPeakDist);
-    locs = locs + round(width/2);
+    % Find and count peaks in masked signal to identify wells
+    [pks, locs, width] = findpeaks(wellIntensityMask,'MinPeakDistance',minPeakDist); % Find peaks from mask
+    locs = locs + round(width/2); % Center peaks
     [val,idx] = min(abs(time-locs));
     wellID = time(idx)';
     plot(locs, wellIntensity(locs),'k*','MarkerSize',10);
-
+    
     if max(idx) > numWells
-        disp(['Warning! More than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames(i)]);
+        disp(['Warning! More than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames{i}]);
     elseif max(idx) < numWells
-        disp(['Warning! Fewer than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames(i)]);
+        disp(['Warning! Fewer than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames{i}]);
     end
     
-    %% Calculate average well intensities and exlude outliers (captured when moving sensor to well)
+    % Calculate intensities for each identified well
     for j = 1:numWells
+        % Exclude outliers (acquired when moving sensor to well)
         m = nanmedian(wellIntensity(wellID==j));
         sd = nanstd(wellIntensity(wellID==j));
         wellIntensity(abs(wellIntensity - m)>sdthresh*sd & wellID==j) = nan;
+        
+        % Calculate well intensities
         wellMean(c,j) = nanmean(wellIntensity(wellID==j));
         wellSD(c,j) = nanstd(wellIntensity(wellID==j));
         text(locs(j), 1.065*max(wellIntensity(:)), sprintf('%s',['Well ' num2str(j)]), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle','FontSize',8,'Color',cmap(j,:));
@@ -131,12 +171,13 @@ for c = 1:channelsPerWell
     set(gca,'Ylim', [0, 1.2*max(wellIntensity(:))]);
 end
 
-%% Format intensity data for calibration
+%% Map measurements and calculate calibration values
+% Convert well intensities vector into matrix corresponding to LPA location
 rawIntensity = zeros(numRows, numColumns*channelsPerWell);
-rawIntensity(:,1:2:end-1) = vec2mat(wellMean(1,:),numColumns);
+rawIntensity(:,1:2:end-1) = vec2mat(wellMean(1,:),numColumns); 
 rawIntensity(:,2:2:end) = vec2mat(wellMean(2,:),numColumns);
 
-%% Refine calibration values from last round (if applicable)
+% Scale intensities by calibration values from previous round (if applicable)
 if calibrationRound > 1
     calPrevious = csvread([strtrim(outputFolder) '\' strtrim(calFile) '_round_' num2str(calibrationRound - 1) '.csv']);
     intensities = rawIntensity./(calPrevious/maxCal);
@@ -144,36 +185,40 @@ else
     intensities = rawIntensity;
 end
 
+% Calculate calibration values
 minIntensity = min(intensities(:));
 relIntensity = intensities/minIntensity;
 cal = 1./relIntensity;
 cal = round(cal*maxCal);
 
-%% Save calibration values
+%% Output results
+% Save mapped measurements and calibration values
 dlmwrite([outputFolder '\' calFile '_round_' num2str(calibrationRound) '.csv'],cal, 'delimiter', ',', 'precision', 9);
 dlmwrite([outputFolder '\rawIntensities_round_' num2str(calibrationRound) '.csv'],rawIntensity, 'delimiter', ',', 'precision', 9);
 
-%% Calculate results
+% Calcualte and display plate statistics
 relMaxIntensity = intensities/max(intensities(:));
 relCalIntensity = intensities.*cal/max(max(intensities.*cal));
 plateMean = mean(rawIntensity(:));
 plateSD = std(rawIntensity(:));
 plateCV = plateSD/plateMean;
-
-%% Display and plot results
 disp(['Round ' num2str(calibrationRound) ' mean plate intensity = ' num2str(plateMean*1E6) ' uW']);
 disp(['Round ' num2str(calibrationRound) ' SD plate intensity = ' num2str(plateSD*1E6) ' uW']);
 disp(['Round ' num2str(calibrationRound) ' CV = ' num2str(plateCV*100) '%']);
 
+%% Plot results
 figure('Name', ['Round ' num2str(calibrationRound) ' calibration'])
-plateData = {rawIntensity*1E6, cal};
-titles = {['Round ' num2str(calibrationRound) ' raw intensities (uW)'], ['Round ' num2str(calibrationRound) ' ' calFile ' values']};
 
-for i = 1:2
-    subplot(2,1,i)
-    heatmap(plateData{i});
-    colorbar;
-    title(titles{i});
-end
+% Plate mapped measurements
+subplot(2,1,1);
+heatmap(columnNames, rowNames, rawIntensity*1E6);
+colorbar;
+title(['Round ' num2str(calibrationRound) ' raw intensities (uW)'])
 
-clearvars
+%Plot calibration values
+subplot(2,1,2);
+heatmap(columnNames, rowNames, cal);
+colorbar;
+title(['Round ' num2str(calibrationRound) ' ' calFile ' values'])
+
+clearvars -except rawIntensity cal plateMean plateSD plateCV
