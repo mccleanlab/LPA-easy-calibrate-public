@@ -67,24 +67,34 @@ numWells = numRows*numColumns;
 channelsPerWell = 2;
 
 %% Set calibration round by UI prompt
-UserAnswerRound = inputdlg('Enter calibration round');
-calibrationRound = str2double(UserAnswerRound{1});
+% UserAnswerRound = inputdlg('Enter calibration round');
+% calibrationRound = str2double(UserAnswerRound{1});
 
 %% Set calibration property by UI prompt
-UserAnswerProperty = questdlg('Select property to calibrate','Calibration property','gcal','dc','gcal');
+UserAnswerProperty = questdlg('Select property to calibrate','Calibration type','gcal','dc','none','none');
 switch UserAnswerProperty
     case 'gcal'
         calFile = 'gcal';
         maxCal = 255; % Initial max gcal value
+        UserAnswerRound = inputdlg('Enter calibration round');
+        calibrationRound = str2double(UserAnswerRound{1});
+        importPrompt = ['Select round ' num2str(calibrationRound)];
     case 'dc'
         calFile = 'dc';
         maxCal = 63; % Initial max dc value
+        UserAnswerRound = inputdlg('Enter calibration round');
+        calibrationRound = str2double(UserAnswerRound{1});
+        importPrompt = ['Select round ' num2str(calibrationRound)]
+    case 'none'
+        measureOnly = 1;
+        calibrationRound = 0;
+        importPrompt = 'Select';
 end
 
 %% Import intensity measurements for channels 1 and 2 by UI prompt
-[file, folder] = uigetfile('*',['Select round ' num2str(calibrationRound) ' channel 1 data']);
+[file, folder] = uigetfile('*',[importPrompt ' channel 1 data']);
 file_ch1 = [folder file];
-[file, folder] = uigetfile('*',['Select round ' num2str(calibrationRound) ' channel 2 data']);
+[file, folder] = uigetfile('*',[importPrompt ' channel 2 data']);
 file_ch2 = [folder file];
 files = {file_ch1, file_ch2};
 
@@ -170,15 +180,28 @@ for c = 1:channelsPerWell
     set(gca,'Ylim', [0, 1.2*max(wellIntensity(:))]);
 end
 
-%% Map measurements and calculate calibration values
+%% Map measurements to LPA wells
 % Convert well intensities vector into matrix corresponding to LPA location
 rawIntensity = zeros(numRows, numColumns*channelsPerWell);
 rawIntensity(:,1:2:end-1) = vec2mat(wellMean(1,:),numColumns);
 rawIntensity(:,2:2:end) = vec2mat(wellMean(2,:),numColumns);
 
+%% Export measurements only (if 'none' selected in calibration type prompt)
+if exist('measureOnly')~=0
+    dlmwrite([outputFolder '\rawIntensities_round_' num2str(calibrationRound) '.csv'],rawIntensity, 'delimiter', ',', 'precision', 9);
+    % Plate mapped measurements
+    figure('Name', ['Measured intensities'])
+    h = heatmap(columnNames, rowNames, rawIntensity*1E6);
+    colorbar;
+    title(['Raw intensities (uW)'])
+    return  % Stop script here
+end
+
+%% Calculate calibration values
+
 % Scale data with information from previous calibration rounds (if applicable)
 if calibrationRound > 1
-    % Set heatmap colorbar range to span initial measured intensities 
+    % Set heatmap colorbar range to span initial measured intensities
     intensitiesInit = csvread([strtrim(outputFolder) '\rawIntensities_round_1.csv']);
     colorbarMin = min(intensitiesInit(:));
     colorbarMax = max(intensitiesInit(:));
