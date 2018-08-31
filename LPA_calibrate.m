@@ -1,12 +1,10 @@
 % NOTE:
-%
 % This script is based on calibration.m by Sebastian Castillo-Hair, as
 % described in Gerhardt, K. P. et al. An open-hardware platform for
 % optogenetics and photobiology. Nat. Publ. Gr. 1–13 (2016).
 % doi:10.1038/srep35363
 %
 % SUMMARY:
-%
 % This script imports files containing light intensity measurements
 % acquired by the ThorLabs power meter, maps the intensities to the wells
 % of a light plate apparatus (LPA), and calculates calibration values
