@@ -8,12 +8,13 @@
 % from an LPA with a ThorLabs power meter over a range of IRIS values. The
 % measurements for each IRIS value should be saved into individual files
 % with the IRIS value included in the filename. For example, one could
-% measure an LPA at IRIS = 500 and log the measurements in IRIS500.csv. The
-% files for each IRIS value can be loaded simultaneously by UI prompt. It
-% is not necessary to measure the whole plate for each IRIS value (we
-% measured 8 randomly sampled wells specified by the script
-% LPA_randomizer.m), though the number of wells measured per IRIS value
-% should be consistent and is specified by UI prompt.
+% measure an LPA at IRIS = 500 and log the measurements in IRIS500.csv. Do
+% not include other numbers in the filename The files for each IRIS value
+% can be loaded simultaneously by UI prompt. It is not necessary to measure
+% the whole plate for each IRIS value (we measured 8 randomly sampled wells
+% specified by the script LPA_randomizer.m), though the number of wells
+% measured per IRIS value should be consistent and is specified by UI
+% prompt.
 % 
 % This script has been tested with 1) .csv files containing light intensity
 % measurements acquired via ThorLabs Optical Power Monitor v1.0.2149.55
@@ -157,8 +158,8 @@ sd = std(intensity)';
 [f, g] = fit(measurementValues, u,'poly1');
 x = 0:1:max(measurementValues);
 yfit = f.p1*x + f.p2;
-doseEqn = ['Intensity = ' num2str(f.p1) '*IRIS + ' num2str(f.p2) newline];
-disp(doseEqn)
+doseEqn = ['Intensity = ' num2str(f.p1) '*IRIS + ' num2str(f.p2)];
+disp([doseEqn newline])
 
 % Calculate and display IRIS needed for target light output
 inputIRIS = round((targetLightOutput*1E-6 - f.p2)./f.p1);
@@ -170,7 +171,9 @@ disp(doseTable)
 figure('Name', 'LPA response')
 errorbar(measurementValues,u*1E6,sd*1E6,'ro','MarkerSize',2);
 hold on;
-plot(x,yfit*1E6);
+h = plot(x,yfit*1E6);
 title(['LPA response' newline '(R squared = ' num2str(g.rsquare) ')']); xlabel('IRIS values (AU)'); ylabel('Light intensity (uW)')
+legend(h,doseEqn,'Location','northwest')
+legend('boxoff')
 
 clearvars -except doseTable doseEqn
