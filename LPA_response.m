@@ -2,7 +2,7 @@
 % This script generates a response equation for a calibrated light plate
 % apparatus (LPA) that relates light intensity output to IRIS value. The
 % script will return the IRIS values needed to achieve the light outputs
-% (in uW) listed in the variable targetLightOutputs.
+% (eg, in uW or uW/cm^2) listed in the variable targetLightOutputs.
 % 
 % The script imports files containing light intensity measurements acquired
 % from an LPA with a ThorLabs power meter over a range of IRIS values. The
@@ -36,13 +36,14 @@
 %   1550 Engineering Drive ECB 3156
 %   Madison, WI 53705
 %   ksweeney2@wisc.edu
-%
-% Last revised on August 30, 2018
+
+%% Last revised on September 4, 2018
 
 %% Prepare to run script
 clearvars; close all; clc;
 
-%% Set target light outputs (in uW)
+%% Set target light outputs
+sensorUnits = 'uW/cm^2';
 targetLightOutput = [10 20 50 75 100]'; 
 
 %% Set segmentation parameters
@@ -164,7 +165,8 @@ disp([doseEqn newline])
 % Calculate and display IRIS needed for target light output
 inputIRIS = round((targetLightOutput*1E-6 - f.p2)./f.p1);
 doseTable = table(inputIRIS, targetLightOutput);
-doseTable.Properties.VariableNames = {'IRIS' 'Light_uW'};
+doseTable.Properties.VariableNames = {'IRIS' 'LightOutput'};
+disp(['Light output units = ' sensorUnits newline]);
 disp(doseTable)
 
 % Plot response equation versus fitted data
@@ -172,8 +174,8 @@ figure('Name', 'LPA response')
 errorbar(measurementValues,u*1E6,sd*1E6,'ro','MarkerSize',2);
 hold on;
 h = plot(x,yfit*1E6);
-title(['LPA response' newline '(R squared = ' num2str(g.rsquare) ')']); xlabel('IRIS values (AU)'); ylabel('Light intensity (uW)')
+title(['LPA response' newline '(R squared = ' num2str(g.rsquare) ')']); xlabel('IRIS values (AU)'); ylabel(['Light intensity (' sensorUnits ')'])
 legend(h,doseEqn,'Location','northwest')
 legend('boxoff')
 
-clearvars -except doseTable doseEqn
+clearvars -except doseTable doseEqn u sd

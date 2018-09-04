@@ -4,14 +4,14 @@
 % optogenetics and photobiology. Nat. Publ. Gr. 1–13 (2016).
 % doi:10.1038/srep35363
 %
-% SUMMARY:
-% This script imports files containing light intensity measurements
-% acquired by the ThorLabs power meter, maps the intensities to the wells
-% of a light plate apparatus (LPA), and calculates calibration values
-% (either dc or gcal) such that each LED in the LPA outputs an equal amount
-% of light. Multiple rounds of calibration may be needed to achieve this.
-% If needed, users can change how intensity measurements are mapped to LPA
-% wells by changing the segmentation parameters.
+% SUMMARY: This script imports files containing light intensity
+% measurements acquired by a ThorLabs optical power meter, maps the
+% intensities to the wells of a light plate apparatus (LPA), and calculates
+% calibration values (either dc or gcal) such that each LED in the LPA
+% outputs an equal amount of light. Multiple rounds of calibration may be
+% needed to achieve this. If needed, users can change how intensity
+% measurements are mapped to LPA wells by changing the segmentation
+% parameters.
 %
 % The measurement files to be imported for channels 1 and 2 (corresponding
 % to the top and bottom sets of LEDs, respectively) and the current
@@ -21,9 +21,12 @@
 % specified by UI prompt. The mapped intensity values are saved to
 % rawIntensities_round_*.csv and the calibration files are saved to either
 % dc_round_*.csv or gcal_round_*.csv. The .csv files are saved to an output
-% folder specified by UI prompt. The script also displays the mean,
-% standard deviation, and coefficient of variation of light intensities
-% across the plate.
+% folder specified by UI prompt. A user may also choose not to export
+% calibration values and simply measure the light output of the LPA. In
+% this case the user can select whether to measure the top and bottom sets
+% of LEDs independently (as during calibration) or together (to measure net
+% well intensity). The script also displays the mean, standard deviation,
+% and coefficient of variation of light intensities across the plate.
 %
 % This script has been tested with 1) .csv files containing light intensity
 % measurements acquired via ThorLabs Optical Power Monitor v1.0.2149.55
@@ -48,7 +51,7 @@
 %   Madison, WI 53705
 %   ksweeney2@wisc.edu
 %
-% Last revised on August 30, 2018
+% Last revised on September 4, 2018
 
 %% Prepare to run script
 clearvars ; close all; clc;
@@ -62,41 +65,49 @@ minPeakDist = 0; % Can optionally enforce minimum distance between well peaks to
 numRows = 4; % Rows of 24 well plate
 rowNames = {'A' 'B' 'C' 'D'};
 numColumns = 6; % Columns of 24 well plate
-columnNames = {'1c1' '1c2' '2c1' '2c2' '3c1' '3c2' '4c1' '4c2' '5c1' '5c2' '6c1' '6c2'};
 numWells = numRows*numColumns;
-channelsPerWell = 2;
-
-%% Set calibration round by UI prompt
-% UserAnswerRound = inputdlg('Enter calibration round');
-% calibrationRound = str2double(UserAnswerRound{1});
+sensorUnits = 'uW/cm^2';
 
 %% Set calibration property by UI prompt
-UserAnswerProperty = questdlg('Select property to calibrate','Calibration type','gcal','dc','none','none');
-switch UserAnswerProperty
+calibrationType = questdlg('Select property to calibrate','Calibration type','gcal','dc','none','none');
+switch calibrationType
     case 'gcal'
         calFile = 'gcal';
         maxCal = 255; % Initial max gcal value
         UserAnswerRound = inputdlg('Enter calibration round');
         calibrationRound = str2double(UserAnswerRound{1});
         importPrompt = ['Select round ' num2str(calibrationRound)];
+        indepLEDs = 'Yes';
     case 'dc'
         calFile = 'dc';
         maxCal = 63; % Initial max dc value
         UserAnswerRound = inputdlg('Enter calibration round');
         calibrationRound = str2double(UserAnswerRound{1});
         importPrompt = ['Select round ' num2str(calibrationRound)]
+        indepLEDs = 'Yes';
     case 'none'
+        indepLEDs = questdlg('Measure top and bottom LEDs independently?','Measurement type','Yes','No','No');
         measureOnly = 1;
         calibrationRound = 0;
         importPrompt = 'Select';
 end
 
 %% Import intensity measurements for channels 1 and 2 by UI prompt
-[file, folder] = uigetfile('*',[importPrompt ' channel 1 data']);
-file_ch1 = [folder file];
-[file, folder] = uigetfile('*',[importPrompt ' channel 2 data']);
-file_ch2 = [folder file];
-files = {file_ch1, file_ch2};
+switch indepLEDs
+    case 'Yes'
+        channelsPerWell = 2;
+        columnNames = {'1c1' '1c2' '2c1' '2c2' '3c1' '3c2' '4c1' '4c2' '5c1' '5c2' '6c1' '6c2'};
+        [file, folder] = uigetfile('*',[importPrompt ' channel 1 data']);
+        file_ch1 = [folder file];
+        [file, folder] = uigetfile('*',[importPrompt ' channel 2 data']);
+        file_ch2 = [folder file];
+        files = {file_ch1, file_ch2};
+    case 'No'
+        channelsPerWell = 1;
+        columnNames = {'1' '2' '3' '4' '5' '6'};
+        [file, folder] = uigetfile('*',[importPrompt ' data']);
+        files = {[folder file]};
+end
 
 % Interpret measurements based on file extension
 [filepath,name,ext] = fileparts(files{1});
@@ -183,8 +194,22 @@ end
 %% Map measurements to LPA wells
 % Convert well intensities vector into matrix corresponding to LPA location
 rawIntensity = zeros(numRows, numColumns*channelsPerWell);
-rawIntensity(:,1:2:end-1) = vec2mat(wellMean(1,:),numColumns);
-rawIntensity(:,2:2:end) = vec2mat(wellMean(2,:),numColumns);
+if channelsPerWell == 1
+    rawIntensity = vec2mat(wellMean(:),numColumns);
+else
+    rawIntensity(:,1:2:end-1) = vec2mat(wellMean(1,:),numColumns);
+    rawIntensity(:,2:2:end) = vec2mat(wellMean(2,:),numColumns);
+end
+
+%% Calculate and display plate statistics
+plateMean = mean(rawIntensity(:));
+plateSD = std(rawIntensity(:));
+plateCV = plateSD/plateMean;
+
+disp(['Round = ' num2str(calibrationRound)])
+disp(['Mean plate intensity = ' num2str(plateMean*1E6) ' ' sensorUnits]);
+disp(['SD plate intensity = ' num2str(plateSD*1E6) ' ' sensorUnits]);
+disp(['CV = ' num2str(plateCV*100) '%']);
 
 %% Export measurements only (if 'none' selected in calibration type prompt)
 if exist('measureOnly')~=0
@@ -193,7 +218,7 @@ if exist('measureOnly')~=0
     figure('Name', ['Measured intensities'])
     h = heatmap(columnNames, rowNames, rawIntensity*1E6);
     colorbar;
-    title(['Raw intensities (uW)'])
+    title(['Raw intensities (' sensorUnits ')'])
     return  % Stop script here
 end
 
@@ -223,16 +248,6 @@ cal = round(cal*maxCal);
 dlmwrite([outputFolder '\' calFile '_round_' num2str(calibrationRound) '.csv'],cal, 'delimiter', ',', 'precision', 9);
 dlmwrite([outputFolder '\rawIntensities_round_' num2str(calibrationRound) '.csv'],rawIntensity, 'delimiter', ',', 'precision', 9);
 
-% Calcualte and display plate statistics
-relMaxIntensity = intensities/max(intensities(:));
-relCalIntensity = intensities.*cal/max(max(intensities.*cal));
-plateMean = mean(rawIntensity(:));
-plateSD = std(rawIntensity(:));
-plateCV = plateSD/plateMean;
-disp(['Round ' num2str(calibrationRound) ' mean plate intensity = ' num2str(plateMean*1E6) ' uW']);
-disp(['Round ' num2str(calibrationRound) ' SD plate intensity = ' num2str(plateSD*1E6) ' uW']);
-disp(['Round ' num2str(calibrationRound) ' CV = ' num2str(plateCV*100) '%']);
-
 %% Plot results
 figure('Name', ['Round ' num2str(calibrationRound) ' calibration'])
 
@@ -243,7 +258,7 @@ colorbar;
 if calibrationRound > 1
     h1.ColorLimits = [colorbarMin colorbarMax]*1E6;
 end
-title(['Round ' num2str(calibrationRound) ' raw intensities (uW)'])
+title(['Round ' num2str(calibrationRound) ' raw intensities (' sensorUnits ')'])
 
 %Plot calibration values
 subplot(2,1,2);
@@ -251,4 +266,4 @@ h2 = heatmap(columnNames, rowNames, cal);
 colorbar;
 title(['Round ' num2str(calibrationRound) ' ' calFile ' values'])
 
-% clearvars -except rawIntensity cal plateMean plateSD plateCV
+clearvars -except rawIntensity cal plateMean plateSD plateCV
