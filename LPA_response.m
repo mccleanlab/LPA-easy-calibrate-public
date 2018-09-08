@@ -3,7 +3,7 @@
 % apparatus (LPA) that relates light intensity output to IRIS value. The
 % script will return the IRIS values needed to achieve the light outputs
 % (eg, in uW or uW/cm^2) listed in the variable targetLightOutputs.
-% 
+%
 % The script imports files containing light intensity measurements acquired
 % from an LPA with a ThorLabs power meter over a range of IRIS values. The
 % measurements for each IRIS value should be saved into individual files
@@ -15,16 +15,16 @@
 % specified by the script LPA_randomizer.m), though the number of wells
 % measured per IRIS value should be consistent and is specified by UI
 % prompt.
-% 
+%
 % This script has been tested with 1) .csv files containing light intensity
 % measurements acquired via ThorLabs Optical Power Monitor v1.0.2149.55
 % software and 2) .txt files containing light intensity measurements
 % acquired via ThorLabs PM100 Utility Version 3.0. It may not work directly
 % with other file types.
-%  
-% INPUTS: 
+%
+% INPUTS:
 % Files containing intensity measurements for different IRIS values
-%  
+%
 % OUTPUTS:
 % doseTable: lists IRIS values for user-specified light intensity outputs
 % doseEqn: equation relating IRIS value to light intensity output
@@ -44,7 +44,7 @@ clearvars; close all; clc;
 
 %% Set target light outputs
 sensorUnits = 'uW/cm^2';
-targetLightOutput = [10 20 50 75 100]'; 
+targetLightOutput = [10 20 50 75 100]';
 
 %% Set segmentation parameters
 ampthresh = 0.7; % Fraction of max intensity threshold for segmenting wells
@@ -52,7 +52,7 @@ sdthresh = 1; % Threshold for discarding unwanted data points from wells (ie, da
 minPeakDist = 0; % Can optionally enforce minimum distance between well peaks to improve well identification
 
 %% Import intensity measurements by UI prompt
-[files, folder] =  uigetfile('*','MultiSelect','on');
+[files, folder] =  uigetfile('*','Select files','MultiSelect','on');
 
 if ischar(files)==1
     files = {files};
@@ -91,8 +91,9 @@ for i = 1:numFiles
     % Create subplot per measurement file
     subplot(numFiles,1,i); hold on;
     title(measurementNames{i},'Interpreter', 'none');
-        
+    
     % Extract measurement data from file
+    warning('off','MATLAB:textio:io:UnableToGuessFormat');
     file = files{i};
     opts = detectImportOptions([folder file]);
     opts.DataLine = dataStartLine;
@@ -100,7 +101,7 @@ for i = 1:numFiles
     data = data{:,dataColumn};
     
     % Reverse measurement data if necessary
-    if reverseData~=0
+    if exist('reverseData')~=0
         data = wrev(data);
     end
     

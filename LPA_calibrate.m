@@ -57,7 +57,7 @@
 clearvars ; close all; clc;
 
 %% Set segmentation parameters
-ampthresh = 0.7; % Fraction of max intensity threshold for segmenting wells
+ampthresh = 0.6; % Fraction of max intensity threshold for segmenting wells
 sdthresh = 1.5; % Threshold for discarding unwanted data points from wells (ie, data captured when moving sensor to well)
 minPeakDist = 0; % Can optionally enforce minimum distance between well peaks to improve well identification
 
@@ -137,6 +137,7 @@ for c = 1:channelsPerWell
     title(['Channel ' num2str(c)],'Interpreter', 'none');
     
     % Extract measurement data from file
+    warning('off','MATLAB:textio:io:UnableToGuessFormat');
     data = files{c};
     opts = detectImportOptions(data);
     opts.DataLine = dataStartLine;
