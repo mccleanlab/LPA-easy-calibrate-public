@@ -2,28 +2,32 @@
 % This script generates a response equation for a calibrated light plate
 % apparatus (LPA) that relates light intensity output to IRIS value. The
 % script will return the IRIS values needed to achieve the light outputs
-% (in uW) listed in the variable targetLightOutputs.
-% 
+
+% (eg, in uW or uW/cm^2) listed in the variable targetLightOutputs.
+%
+
 % The script imports files containing light intensity measurements acquired
 % from an LPA with a ThorLabs power meter over a range of IRIS values. The
 % measurements for each IRIS value should be saved into individual files
 % with the IRIS value included in the filename. For example, one could
-% measure an LPA at IRIS = 500 and log the measurements in IRIS500.csv. The
-% files for each IRIS value can be loaded simultaneously by UI prompt. It
-% is not necessary to measure the whole plate for each IRIS value (we
-% measured 8 randomly sampled wells specified by the script
-% LPA_randomizer.m), though the number of wells measured per IRIS value
-% should be consistent and is specified by UI prompt.
-% 
+% measure an LPA at IRIS = 500 and log the measurements in IRIS500.csv. Do
+% not include other numbers in the filename The files for each IRIS value
+% can be loaded simultaneously by UI prompt. It is not necessary to measure
+% the whole plate for each IRIS value (we measured 8 randomly sampled wells
+% specified by the script LPA_randomizer.m), though the number of wells
+% measured per IRIS value should be consistent and is specified by UI
+% prompt.
+%
 % This script has been tested with 1) .csv files containing light intensity
 % measurements acquired via ThorLabs Optical Power Monitor v1.0.2149.55
 % software and 2) .txt files containing light intensity measurements
 % acquired via ThorLabs PM100 Utility Version 3.0. It may not work directly
 % with other file types.
-%  
-% INPUTS: 
+%
+% INPUTS:
 % Files containing intensity measurements for different IRIS values
-%  
+%
+
 % OUTPUTS:
 % doseTable: lists IRIS values for user-specified light intensity outputs
 % doseEqn: equation relating IRIS value to light intensity output
@@ -35,14 +39,18 @@
 %   1550 Engineering Drive ECB 3156
 %   Madison, WI 53705
 %   ksweeney2@wisc.edu
-%
-% Last revised on August 30, 2018
+
+
+%% Last revised on September 4, 2018
+
 
 %% Prepare to run script
 clearvars; close all; clc;
 
-%% Set target light outputs (in uW)
-targetLightOutput = [10 20 50 75 100]'; 
+%% Set target light outputs
+sensorUnits = 'uW/cm^2';
+targetLightOutput = [10 20 50 75 100]';
+
 
 %% Set segmentation parameters
 ampthresh = 0.7; % Fraction of max intensity threshold for segmenting wells
@@ -50,7 +58,9 @@ sdthresh = 1; % Threshold for discarding unwanted data points from wells (ie, da
 minPeakDist = 0; % Can optionally enforce minimum distance between well peaks to improve well identification
 
 %% Import intensity measurements by UI prompt
-[files, folder] =  uigetfile('*','MultiSelect','on');
+
+[files, folder] =  uigetfile('*','Select files','MultiSelect','on');
+
 
 if ischar(files)==1
     files = {files};
@@ -89,8 +99,11 @@ for i = 1:numFiles
     % Create subplot per measurement file
     subplot(numFiles,1,i); hold on;
     title(measurementNames{i},'Interpreter', 'none');
-        
+
+    
     % Extract measurement data from file
+    warning('off','MATLAB:textio:io:UnableToGuessFormat');
+
     file = files{i};
     opts = detectImportOptions([folder file]);
     opts.DataLine = dataStartLine;
@@ -98,7 +111,9 @@ for i = 1:numFiles
     data = data{:,dataColumn};
     
     % Reverse measurement data if necessary
-    if reverseData~=0
+
+    if exist('reverseData')~=0
+
         data = wrev(data);
     end
     
@@ -157,20 +172,29 @@ sd = std(intensity)';
 [f, g] = fit(measurementValues, u,'poly1');
 x = 0:1:max(measurementValues);
 yfit = f.p1*x + f.p2;
-doseEqn = ['Intensity = ' num2str(f.p1) '*IRIS + ' num2str(f.p2) newline];
-disp(doseEqn)
+
+doseEqn = ['Intensity = ' num2str(f.p1) '*IRIS + ' num2str(f.p2)];
+disp([doseEqn newline])
+
 
 % Calculate and display IRIS needed for target light output
 inputIRIS = round((targetLightOutput*1E-6 - f.p2)./f.p1);
 doseTable = table(inputIRIS, targetLightOutput);
-doseTable.Properties.VariableNames = {'IRIS' 'Light_uW'};
+
+doseTable.Properties.VariableNames = {'IRIS' 'LightOutput'};
+disp(['Light output units = ' sensorUnits newline]);
+
 disp(doseTable)
 
 % Plot response equation versus fitted data
 figure('Name', 'LPA response')
 errorbar(measurementValues,u*1E6,sd*1E6,'ro','MarkerSize',2);
 hold on;
-plot(x,yfit*1E6);
-title(['LPA response' newline '(R squared = ' num2str(g.rsquare) ')']); xlabel('IRIS values (AU)'); ylabel('Light intensity (uW)')
 
-clearvars -except doseTable doseEqn
+h = plot(x,yfit*1E6);
+title(['LPA response' newline '(R squared = ' num2str(g.rsquare) ')']); xlabel('IRIS values (AU)'); ylabel(['Light intensity (' sensorUnits ')'])
+legend(h,doseEqn,'Location','northwest')
+legend('boxoff')
+
+clearvars -except doseTable doseEqn u sd
+
