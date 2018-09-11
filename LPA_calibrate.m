@@ -1,18 +1,17 @@
 % NOTE:
 % This script is based on calibration.m by Sebastian Castillo-Hair, as
 % described in Gerhardt, K. P. et al. An open-hardware platform for
-% optogenetics and photobiology. Nat. Publ. Gr. 1â€“13 (2016).
+% optogenetics and photobiology. Nat. Publ. Gr. 1–13 (2016).
 % doi:10.1038/srep35363
-% 
-% SUMMARY:
 %
-% This script imports files containing light intensity measurements
-% acquired by the ThorLabs power meter, maps the intensities to the wells
-% of a light plate apparatus (LPA), and calculates calibration values
-% (either dc or gcal) such that each LED in the LPA outputs an equal amount
-% of light. Multiple rounds of calibration may be needed to achieve this.
-% If needed, users can change how intensity measurements are mapped to LPA
-% wells by changing the segmentation parameters.
+% SUMMARY: This script imports files containing light intensity
+% measurements acquired by a ThorLabs optical power meter, maps the
+% intensities to the wells of a light plate apparatus (LPA), and calculates
+% calibration values (either dc or gcal) such that each LED in the LPA
+% outputs an equal amount of light. Multiple rounds of calibration may be
+% needed to achieve this. If needed, users can change how intensity
+% measurements are mapped to LPA wells by changing the segmentation
+% parameters.
 %
 % The measurement files to be imported for channels 1 and 2 (corresponding
 % to the top and bottom sets of LEDs, respectively) and the current
@@ -53,7 +52,6 @@
 %   ksweeney2@wisc.edu
 %
 % Last revised on September 4, 2018
-
 
 %% Prepare to run script
 clearvars ; close all; clc;
@@ -111,7 +109,6 @@ switch indepLEDs
         files = {[folder file]};
 end
 
-
 % Interpret measurements based on file extension
 [filepath,name,ext] = fileparts(files{1});
 
@@ -160,9 +157,7 @@ for c = 1:channelsPerWell
     wellIntensity = wellIntensity - dark; % Subtract out background intensity
     plot(time,wellIntensity)
     wellIntensity(wellIntensity<ampthresh*max(wellIntensity)) = nan; % Threshold to exclude intensity data from outside wells
-
     
-
     % Create binary mask signal from preprocessed measurements
     wellIntensityMask = zeros(length(wellIntensity),1);
     wellIntensityMask(wellIntensity>0) = 1;
@@ -190,9 +185,7 @@ for c = 1:channelsPerWell
         % Calculate well intensities
         wellMean(c,j) = nanmean(wellIntensity(wellID==j));
         wellSD(c,j) = nanstd(wellIntensity(wellID==j));
-
         text(locs(j), 1.065*max(wellIntensity(:)), sprintf('%s',['Well ' rowNames{floor((j-1)/numColumns) + 1} num2str(rem(j+numColumns-1,numColumns) + 1)]), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle','FontSize',8,'Color',cmap(j,:));
-
         plot(time(wellID==j), wellIntensity(wellID==j),'o','Color',cmap(j,:))
     end
     
@@ -239,7 +232,6 @@ if calibrationRound > 1
     colorbarMin = min(intensitiesInit(:));
     colorbarMax = max(intensitiesInit(:));
     % Scale intensities by calibration values from previous round (if applicable)
-
     calPrevious = csvread([strtrim(outputFolder) '\' strtrim(calFile) '_round_' num2str(calibrationRound - 1) '.csv']);
     intensities = rawIntensity./(calPrevious/maxCal);
 else
@@ -257,18 +249,6 @@ cal = round(cal*maxCal);
 dlmwrite([outputFolder '\' calFile '_round_' num2str(calibrationRound) '.csv'],cal, 'delimiter', ',', 'precision', 9);
 dlmwrite([outputFolder '\rawIntensities_round_' num2str(calibrationRound) '.csv'],rawIntensity, 'delimiter', ',', 'precision', 9);
 
-
-% Calcualte and display plate statistics
-relMaxIntensity = intensities/max(intensities(:));
-relCalIntensity = intensities.*cal/max(max(intensities.*cal));
-plateMean = mean(rawIntensity(:));
-plateSD = std(rawIntensity(:));
-plateCV = plateSD/plateMean;
-disp(['Round ' num2str(calibrationRound) ' mean plate intensity = ' num2str(plateMean*1E6) ' uW']);
-disp(['Round ' num2str(calibrationRound) ' SD plate intensity = ' num2str(plateSD*1E6) ' uW']);
-disp(['Round ' num2str(calibrationRound) ' CV = ' num2str(plateCV*100) '%']);
-
-
 %% Plot results
 figure('Name', ['Round ' num2str(calibrationRound) ' calibration'])
 
@@ -281,10 +261,9 @@ if calibrationRound > 1
 end
 title(['Round ' num2str(calibrationRound) ' raw intensities (' sensorUnits ')'])
 
-%Plot calibration values
+% Plot calibration values
 subplot(2,1,2);
 h2 = heatmap(columnNames, rowNames, cal);
-
 colorbar;
 title(['Round ' num2str(calibrationRound) ' ' calFile ' values'])
 
