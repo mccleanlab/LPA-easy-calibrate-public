@@ -170,9 +170,9 @@ for c = 1:channelsPerWell
     plot(locs, wellIntensity(locs),'k*','MarkerSize',10);
     
     if max(idx) > numWells
-        disp(['Warning! More than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames{i}]);
+        disp(['Warning! More than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames{i} newline 'Try changing the ampthresh paramater']);
     elseif max(idx) < numWells
-        disp(['Warning! Fewer than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames{i}]);
+        disp(['Warning! Fewer than ' num2str(numWells) ' wells detected in channel ' num2str(c) ' row ' rowNames{i} newline 'Try changing the ampthresh paramater']);
     end
     
     % Calculate intensities for each identified well
