@@ -312,4 +312,4 @@ h2 = heatmap(columnNames, rowLabels, calDisplay);
 colorbar;
 title(['Round ' num2str(calibrationRound) ' ' calFile ' values'])
 
-%clearvars -except meanIntensities cal plateMean plateSD plateCV
+clearvars -except meanIntensities cal plateMean plateSD plateCV
